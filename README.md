@@ -4,14 +4,11 @@ Spring Boot를 사용한 Java 기반 AI 챗봇 프로그램입니다. **API 키 
 
 ## 기능
 
-- 🤖 간단한 챗봇 (로컬)
 - 🌐 Google Gemini (무료)
-- 💬 OpenAI ChatGPT (무료)
 - 💬 실시간 채팅 인터페이스
 - 🔄 대화 기록 유지
 - ⚙️ 모델 및 온도 설정 가능
 - 🗑️ 대화 기록 초기화
-- ✅ **완전 무료**
 
 ## 빠른 시작
 
@@ -31,15 +28,7 @@ mvn spring-boot:run
 
 ## 사용 방법
 
-### 방법 1: 간단한 챗봇 (추천 - 즉시 사용 가능)
-
-1. 프로그램 실행: `실행.bat`
-2. 사이드바에서 "간단한 챗봇 (로컬) - 추천" 선택 (기본값)
-3. 바로 채팅 시작!
-
-**장점**: 완전 무료, 인터넷 불필요, 프라이버시 보호
-
-### 방법 2: Google Gemini 사용
+### 방법 1: Google Gemini 사용
 
 1. [Google AI Studio](https://aistudio.google.com/app/apikey)에서 무료 API 키 발급
 2. 프로그램 실행
@@ -47,7 +36,7 @@ mvn spring-boot:run
 4. API 키 입력
 5. 채팅 시작!
 
-### 방법 3: OpenAI ChatGPT 사용
+### 방법 2: OpenAI ChatGPT 사용
 
 1. [OpenAI Platform](https://platform.openai.com/api-keys)에서 계정 생성
 2. API 키 발급 (신규 가입 시 무료 크레딧 제공)

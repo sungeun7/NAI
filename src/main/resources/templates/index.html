@@ -143,6 +143,30 @@
             color: #856404;
         }
 
+        .temperature-info {
+            margin-top: 10px;
+            padding: 10px;
+            background: #f5f5f5;
+            border-radius: 8px;
+            font-size: 12px;
+            color: #666;
+            line-height: 1.6;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .label-spacing {
+            margin-top: 10px;
+        }
+
+        .warning-info-box {
+            margin-top: 10px;
+            background: #fff3cd;
+            border-left-color: #ffc107;
+        }
+
         .chat-container {
             flex: 1;
             display: flex;
@@ -298,7 +322,7 @@
         <div class="sidebar">
             <h2>⚙️ 설정</h2>
 
-            <div class="section" style="display: none;">
+            <div class="section hidden">
                 <label>AI 타입 선택</label>
                 <select id="aiType" title="AI 타입 선택" onchange="updateAiSettings()">
                     <option value="Google Gemini" selected>Google Gemini</option>
@@ -312,9 +336,9 @@
                     <option value="gemini-1.5-flash">gemini-1.5-flash</option>
                     <option value="gemini-1.5-pro">gemini-1.5-pro</option>
                 </select>
-                <label style="margin-top: 10px;">Gemini API 키</label>
+                <label class="label-spacing">Gemini API 키</label>
                 <input type="password" id="geminiApiKey" placeholder="API 키를 입력하세요" title="Gemini API 키" value="AIzaSyBHhFyXxCoOAU_BdMoPib2SO-mHA2z_1SA">
-                <div class="info-box" style="margin-top: 10px; background: #fff3cd; border-left-color: #ffc107;">
+                <div class="info-box warning-info-box">
                     <small>🔑 API 키 발급: <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener">Google AI Studio</a></small><br>
                     <small>✅ 무료로 사용 가능합니다</small>
                 </div>
@@ -323,6 +347,12 @@
             <div class="section">
                 <label>온도 설정: <span id="temperatureValue">0.7</span></label>
                 <input type="range" id="temperature" title="온도 설정" min="0" max="1" step="0.1" value="0.7">
+                <div class="temperature-info">
+                    <strong>온도 설정 역할:</strong><br>
+                    • <strong>낮은 온도 (0.0-0.3):</strong> 일관적이고 예측 가능한 응답<br>
+                    • <strong>중간 온도 (0.4-0.7):</strong> 균형잡힌 응답 (권장)<br>
+                    • <strong>높은 온도 (0.8-1.0):</strong> 창의적이고 다양한 응답
+                </div>
             </div>
 
             <div id="modelStatus" class="model-status"></div>

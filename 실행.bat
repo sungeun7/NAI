@@ -681,31 +681,25 @@ if !BROWSER_FOUND! equ 1 (
 echo.
 
 REM Wait a moment for browser to start and connect
-timeout /t 3 /nobreak >nul
+timeout /t 5 /nobreak >nul
 
-REM Get browser process ID - try multiple methods
+REM Get browser process ID - try multiple methods (wait longer for browser to connect)
 set BROWSER_PID=
+echo [INFO] 브라우저 PID 찾는 중...
 
-REM Method 1: Check which process is using port 8080
+REM Method 1: Check which process is using port 8080 (most reliable)
 for /f "tokens=5" %%p in ('netstat -ano 2^>nul ^| findstr ":8080" ^| findstr "ESTABLISHED"') do (
     if not "%%p"=="" (
         REM Check if this PID is a browser process
-        tasklist /FI "PID eq %%p" /FI "IMAGENAME eq chrome.exe" 2^>nul | findstr /I "%%p" >nul
-        if !errorlevel! equ 0 set BROWSER_PID=%%p
-        if not defined BROWSER_PID (
-            tasklist /FI "PID eq %%p" /FI "IMAGENAME eq msedge.exe" 2^>nul | findstr /I "%%p" >nul
-            if !errorlevel! equ 0 set BROWSER_PID=%%p
-        )
-        if not defined BROWSER_PID (
-            tasklist /FI "PID eq %%p" /FI "IMAGENAME eq firefox.exe" 2^>nul | findstr /I "%%p" >nul
-            if !errorlevel! equ 0 set BROWSER_PID=%%p
-        )
-        if not defined BROWSER_PID (
-            tasklist /FI "PID eq %%p" /FI "IMAGENAME eq iexplore.exe" 2^>nul | findstr /I "%%p" >nul
-            if !errorlevel! equ 0 set BROWSER_PID=%%p
+        tasklist /FI "PID eq %%p" 2^>nul | findstr /I "chrome.exe msedge.exe firefox.exe iexplore.exe" >nul
+        if !errorlevel! equ 0 (
+            set BROWSER_PID=%%p
+            echo [SUCCESS] 브라우저 PID 찾음: %BROWSER_PID%
+            goto :browser_pid_saved
         )
     )
 )
+:browser_pid_saved
 
 REM Method 2: Find browser processes with localhost:8080 in command line (if Method 1 failed)
 if not defined BROWSER_PID (
@@ -770,28 +764,35 @@ REM Monitor loop - check browser and server every 1 second (automatic mode)
 :monitor_loop
 timeout /t 1 /nobreak >nul
 
-REM Check if browser process still exists - simplified and more reliable
+REM Check if browser process still exists - prioritize saved PID
 set BROWSER_EXISTS=0
 
-REM Method 1: Check if any browser is connected to port 8080 (MOST RELIABLE - browser must be connected)
-for /f "tokens=5" %%p in ('netstat -ano 2^>nul ^| findstr ":8080" ^| findstr "ESTABLISHED"') do (
-    if not "%%p"=="" (
-        REM Check if this PID is a browser process
-        tasklist /FI "PID eq %%p" 2^>nul | findstr /I "chrome.exe msedge.exe firefox.exe iexplore.exe" >nul
-        if !errorlevel! equ 0 (
-            set BROWSER_EXISTS=1
-            goto :browser_check_done
-        )
+REM Method 1: Check specific browser PID if we found one earlier (MOST RELIABLE)
+if defined BROWSER_PID (
+    REM Check if browser PID still exists
+    tasklist /FI "PID eq %BROWSER_PID%" 2^>nul | findstr /I "%BROWSER_PID%" >nul
+    if !errorlevel! equ 0 (
+        REM Browser PID still exists - browser is open
+        set BROWSER_EXISTS=1
+        goto :browser_check_done
+    ) else (
+        REM Browser PID no longer exists - browser was closed (MOST RELIABLE INDICATOR)
+        set BROWSER_EXISTS=0
+        echo [INFO] 브라우저 PID %BROWSER_PID%가 더 이상 존재하지 않습니다. 브라우저가 닫혔습니다.
+        goto :browser_check_done
     )
 )
 
-REM Method 2: Check specific browser PID if we found one earlier (fallback)
+REM Method 2: Check if any browser is connected to port 8080 (fallback if no PID saved)
 if !BROWSER_EXISTS! equ 0 (
-    if defined BROWSER_PID (
-        tasklist /FI "PID eq %BROWSER_PID%" 2^>nul | findstr /I "%BROWSER_PID%" >nul
-        if !errorlevel! equ 0 (
-            set BROWSER_EXISTS=1
-            goto :browser_check_done
+    for /f "tokens=5" %%p in ('netstat -ano 2^>nul ^| findstr ":8080" ^| findstr "ESTABLISHED"') do (
+        if not "%%p"=="" (
+            REM Check if this PID is a browser process
+            tasklist /FI "PID eq %%p" 2^>nul | findstr /I "chrome.exe msedge.exe firefox.exe iexplore.exe" >nul
+            if !errorlevel! equ 0 (
+                set BROWSER_EXISTS=1
+                goto :browser_check_done
+            )
         )
     )
 )
