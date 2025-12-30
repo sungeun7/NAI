@@ -462,28 +462,40 @@ echo ========================================
 echo   Waiting for server to start...
 echo ========================================
 echo Server is starting... Please wait...
+echo (This may take a few seconds...)
+echo.
 
-REM Wait for server to be ready (check port 8080) - max 30 seconds
+REM Wait for server to be ready (check port 8080) - faster and more reliable
 set SERVER_READY=0
 set WAIT_COUNT=0
+
+REM Give server a moment to start
+echo Waiting for server to start...
+timeout /t 3 /nobreak >nul
+
 :wait_for_server
-timeout /t 2 /nobreak >nul
+timeout /t 1 /nobreak >nul
 set /a WAIT_COUNT+=1
-echo Checking server... (Attempt !WAIT_COUNT!/15)
+echo Checking server... (Attempt !WAIT_COUNT!/8)
+
+REM Check if port is listening - if yes, open browser immediately
 netstat -ano 2>nul | findstr ":8080" | findstr "LISTENING" >nul
 if !errorlevel! equ 0 (
-    REM Port is listening, try HTTP request with longer timeout
-    powershell -NoProfile -ExecutionPolicy Bypass -Command "try { $response = Invoke-WebRequest -Uri 'http://localhost:8080' -TimeoutSec 3 -UseBasicParsing; if ($response.StatusCode -eq 200) { exit 0 } else { exit 1 } } catch { exit 1 }" >nul 2>&1
-    if !errorlevel! equ 0 (
-        set SERVER_READY=1
-        echo Server is READY! Opening browser...
-        goto :server_ready
-    ) else (
-        echo Server port is open but not responding yet...
+    echo [SUCCESS] Port 8080 is listening!
+    echo [INFO] Opening browser now...
+    set SERVER_READY=1
+    goto :server_ready
+) else (
+    if !WAIT_COUNT! leq 3 (
+        echo [INFO] Port 8080 not listening yet, waiting...
     )
 )
-if !WAIT_COUNT! geq 15 (
-    echo Server check timeout after 30 seconds, opening browser anyway...
+
+REM If we've waited long enough, try opening browser anyway
+if !WAIT_COUNT! geq 8 (
+    echo.
+    echo [INFO] Opening browser (server should be ready)
+    echo.
     set SERVER_READY=1
     goto :server_ready
 )
@@ -497,88 +509,63 @@ echo ========================================
 echo.
 
 REM Open browser - Try multiple browsers
-echo Opening browser...
+echo.
+echo [INFO] Attempting to open browser at http://localhost:8080
+echo.
 set BROWSER_OPENED=0
 
-REM Method 1: Edge (PRIORITY - try all Edge locations)
-if exist "C:\Program Files\Microsoft\Edge\Application\msedge.exe" (
-    echo [1] Trying Edge from: C:\Program Files\Microsoft\Edge\Application\msedge.exe
-    start "" "C:\Program Files\Microsoft\Edge\Application\msedge.exe" "http://localhost:8080"
-    set BROWSER_OPENED=1
-    timeout /t 2 /nobreak >nul
-    goto :browser_opened
-)
-if exist "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" (
-    echo [1] Trying Edge from: C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe
-    start "" "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" "http://localhost:8080"
-    set BROWSER_OPENED=1
-    timeout /t 2 /nobreak >nul
-    goto :browser_opened
-)
-
-REM Method 2: Try to find Edge using where command
-where msedge.exe >nul 2>&1
-if !errorlevel! equ 0 (
-    echo [2] Trying Edge using system PATH...
-    start "" msedge.exe "http://localhost:8080"
-    set BROWSER_OPENED=1
-    timeout /t 2 /nobreak >nul
-    goto :browser_opened
-)
-
-REM Method 3: Chrome
-if exist "C:\Program Files\Google\Chrome\Application\chrome.exe" (
-    echo [3] Trying Chrome from: C:\Program Files\Google\Chrome\Application\chrome.exe
-    start "" "C:\Program Files\Google\Chrome\Application\chrome.exe" "http://localhost:8080"
-    set BROWSER_OPENED=1
-    timeout /t 2 /nobreak >nul
-    goto :browser_opened
-)
-if exist "C:\Program Files (x86)\Google\Chrome\Application\chrome.exe" (
-    echo [3] Trying Chrome from: C:\Program Files (x86)\Google\Chrome\Application\chrome.exe
-    start "" "C:\Program Files (x86)\Google\Chrome\Application\chrome.exe" "http://localhost:8080"
-    set BROWSER_OPENED=1
-    timeout /t 2 /nobreak >nul
-    goto :browser_opened
-)
-
-REM Method 4: Firefox
-if exist "C:\Program Files\Mozilla Firefox\firefox.exe" (
-    echo [4] Trying Firefox from: C:\Program Files\Mozilla Firefox\firefox.exe
-    start "" "C:\Program Files\Mozilla Firefox\firefox.exe" "http://localhost:8080"
-    set BROWSER_OPENED=1
-    timeout /t 2 /nobreak >nul
-    goto :browser_opened
-)
-if exist "C:\Program Files (x86)\Mozilla Firefox\firefox.exe" (
-    echo [4] Trying Firefox from: C:\Program Files (x86)\Mozilla Firefox\firefox.exe
-    start "" "C:\Program Files (x86)\Mozilla Firefox\firefox.exe" "http://localhost:8080"
-    set BROWSER_OPENED=1
-    timeout /t 2 /nobreak >nul
-    goto :browser_opened
-)
-
-REM Method 5: Try PowerShell to find any browser
-echo [5] Trying PowerShell to find default browser...
-powershell -NoProfile -ExecutionPolicy Bypass -Command "try { Start-Process 'http://localhost:8080' -ErrorAction Stop; exit 0 } catch { exit 1 }" >nul 2>&1
-if !errorlevel! equ 0 (
-    set BROWSER_OPENED=1
-    timeout /t 2 /nobreak >nul
-    goto :browser_opened
-)
-
-REM Method 6: Windows default browser
-echo [6] Trying Windows default browser...
+REM Method 1: Windows default browser (most reliable - try multiple times)
+echo [METHOD 1] Opening Windows default browser...
 start http://localhost:8080
+timeout /t 1 /nobreak >nul
+start http://localhost:8080
+timeout /t 1 /nobreak >nul
+cmd /c start http://localhost:8080
+set BROWSER_OPENED=1
 timeout /t 2 /nobreak >nul
 
-REM Method 7: Additional methods
-echo [7] Trying additional methods...
-cmd /c start http://localhost:8080
+REM Method 2: PowerShell (as backup)
+echo [METHOD 2] Trying PowerShell method...
+powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process 'http://localhost:8080'" 2>&1
 timeout /t 1 /nobreak >nul
+
+REM Method 3: Edge (as backup)
+if exist "C:\Program Files\Microsoft\Edge\Application\msedge.exe" (
+    echo [METHOD 3] Trying Edge...
+    start "" "C:\Program Files\Microsoft\Edge\Application\msedge.exe" "http://localhost:8080"
+    timeout /t 1 /nobreak >nul
+)
+if exist "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" (
+    start "" "C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe" "http://localhost:8080"
+    timeout /t 1 /nobreak >nul
+)
+
+REM Method 4: Chrome (as backup)
+if exist "C:\Program Files\Google\Chrome\Application\chrome.exe" (
+    echo [METHOD 4] Trying Chrome...
+    start "" "C:\Program Files\Google\Chrome\Application\chrome.exe" "http://localhost:8080"
+    timeout /t 1 /nobreak >nul
+)
+if exist "C:\Program Files (x86)\Google\Chrome\Application\chrome.exe" (
+    start "" "C:\Program Files (x86)\Google\Chrome\Application\chrome.exe" "http://localhost:8080"
+    timeout /t 1 /nobreak >nul
+)
+
+REM Method 5: Firefox (as backup)
+if exist "C:\Program Files\Mozilla Firefox\firefox.exe" (
+    echo [METHOD 5] Trying Firefox...
+    start "" "C:\Program Files\Mozilla Firefox\firefox.exe" "http://localhost:8080"
+    timeout /t 1 /nobreak >nul
+)
+if exist "C:\Program Files (x86)\Mozilla Firefox\firefox.exe" (
+    start "" "C:\Program Files (x86)\Mozilla Firefox\firefox.exe" "http://localhost:8080"
+    timeout /t 1 /nobreak >nul
+)
+
+REM Method 6: Additional methods as final backup
+echo [METHOD 6] Trying additional methods...
 rundll32 url.dll,FileProtocolHandler http://localhost:8080
 timeout /t 1 /nobreak >nul
-powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process 'http://localhost:8080'"
 
 :browser_opened
 
@@ -601,16 +588,22 @@ if !BROWSER_FOUND! equ 0 (
 
 if !BROWSER_FOUND! equ 1 (
     echo [SUCCESS] Browser opened successfully!
+    echo.
 ) else (
     echo [WARNING] Browser may not have opened automatically.
     echo.
-    echo Please manually open your browser and go to:
+    echo Trying to open browser again with different methods...
+    timeout /t 1 /nobreak >nul
+    start http://localhost:8080
+    timeout /t 1 /nobreak >nul
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "Start-Process 'http://localhost:8080'"
+    timeout /t 1 /nobreak >nul
+    cmd /c start http://localhost:8080
+    timeout /t 2 /nobreak >nul
+    echo.
+    echo If browser still did not open, please manually go to:
     echo   http://localhost:8080
     echo.
-    echo Or press any key to try opening browser again...
-    pause >nul
-    start http://localhost:8080
-    timeout /t 2 /nobreak >nul
 )
 echo.
 
