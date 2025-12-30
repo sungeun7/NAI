@@ -9,6 +9,9 @@ REM Cleanup function 정의
 goto :main
 
 :cleanup
+REM This function can be called with 'call' or 'goto'
+if "%1"=="return" goto :eof
+
 echo.
 echo ========================================
 echo   Stopping server...
@@ -223,24 +226,94 @@ echo   All processes stopped successfully!
 echo ========================================
 echo.
 
-REM Get current process information
-for /f "tokens=2" %%p in ('tasklist /FI "WINDOWTITLE eq AI Chatbot Program*" /FO LIST 2^>nul ^| findstr /I "PID"') do set MY_PID=%%p
-
-REM Close this window using PowerShell (most reliable method)
+REM Close this window using multiple methods
 echo Closing this window...
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$title = '*AI Chatbot Program*'; Get-Process | Where-Object {$_.MainWindowTitle -like $title} | ForEach-Object { try { Write-Host ('Closing PID: ' + $_.Id); Stop-Process -Id $_.Id -Force } catch { Write-Host ('Error: ' + $_.Exception.Message) } }" 2>nul
+
+REM Method 1: PowerShell (most reliable)
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$title = '*AI Chatbot Program*'; Get-Process | Where-Object {$_.MainWindowTitle -like $title} | ForEach-Object { try { Stop-Process -Id $_.Id -Force } catch {} }" 2>nul
 timeout /t 1 /nobreak >nul
 
-REM Additional method: Close by window title
+REM Method 2: Close by window title
 taskkill /FI "WINDOWTITLE eq AI Chatbot Program*" /F >nul 2>&1
+timeout /t 1 /nobreak >nul
 
-REM If still running, use wmic to close
-if defined MY_PID (
-    wmic process where "ProcessId=%MY_PID%" delete >nul 2>&1
+REM Method 3: Find and use current window PID
+for /f "tokens=2" %%p in ('tasklist /FI "WINDOWTITLE eq AI Chatbot Program*" /FO LIST 2^>nul ^| findstr /I "PID"') do (
+    taskkill /PID %%p /F >nul 2>&1
+    timeout /t 1 /nobreak >nul
+    wmic process where "ProcessId=%%p" delete >nul 2>&1
+    timeout /t 1 /nobreak >nul
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "try { Stop-Process -Id %%p -Force } catch {}" >nul 2>&1
 )
 
-REM Final exit
-exit /b
+REM Method 4: Find and close by command line
+for /f "tokens=2" %%p in ('tasklist /FI "IMAGENAME eq cmd.exe" /FO LIST 2^>nul ^| findstr /I "PID"') do (
+    for /f "tokens=*" %%c in ('wmic process where "ProcessId=%%p" get CommandLine 2^>nul') do (
+        echo %%c | findstr /I "실행.bat" >nul
+        if !errorlevel! equ 0 (
+            taskkill /PID %%p /F >nul 2>&1
+            timeout /t 1 /nobreak >nul
+        )
+    )
+)
+
+REM Final exit - force close this window using multiple methods
+timeout /t 1 /nobreak >nul
+
+REM Get current cmd.exe process PID that's running this script
+for /f "tokens=2" %%p in ('tasklist /FI "IMAGENAME eq cmd.exe" /FO LIST 2^>nul ^| findstr /I "PID"') do (
+    for /f "tokens=*" %%c in ('wmic process where "ProcessId=%%p" get CommandLine 2^>nul') do (
+        echo %%c | findstr /I "실행.bat" >nul
+        if !errorlevel! equ 0 (
+            REM Close this specific process
+            taskkill /PID %%p /F >nul 2>&1
+            timeout /t 1 /nobreak >nul
+            wmic process where "ProcessId=%%p" delete >nul 2>&1
+            timeout /t 1 /nobreak >nul
+            powershell -NoProfile -ExecutionPolicy Bypass -Command "try { Stop-Process -Id %%p -Force } catch {}" >nul 2>&1
+        )
+    )
+)
+
+REM Close this window - find and close current cmd.exe process running this script
+echo Closing this window...
+set WINDOW_CLOSED=0
+
+REM Method 1: Find by command line (most reliable)
+for /f "tokens=2" %%p in ('tasklist /FI "IMAGENAME eq cmd.exe" /FO LIST 2^>nul ^| findstr /I "PID"') do (
+    for /f "tokens=*" %%c in ('wmic process where "ProcessId=%%p" get CommandLine 2^>nul') do (
+        echo %%c | findstr /I "실행.bat" >nul
+        if !errorlevel! equ 0 (
+            echo Closing window (PID: %%p)...
+            REM Try multiple methods to close
+            taskkill /PID %%p /F >nul 2>&1
+            timeout /t 1 /nobreak >nul
+            wmic process where "ProcessId=%%p" delete >nul 2>&1
+            timeout /t 1 /nobreak >nul
+            powershell -NoProfile -ExecutionPolicy Bypass -Command "try { Stop-Process -Id %%p -Force } catch {}" >nul 2>&1
+            timeout /t 1 /nobreak >nul
+            set WINDOW_CLOSED=1
+            goto :window_closed
+        )
+    )
+)
+:window_closed
+
+REM Method 2: Close by window title
+if !WINDOW_CLOSED! equ 0 (
+    echo Closing window by title...
+    taskkill /FI "WINDOWTITLE eq AI Chatbot Program*" /F >nul 2>&1
+    timeout /t 1 /nobreak >nul
+    powershell -NoProfile -ExecutionPolicy Bypass -Command "$title = '*AI Chatbot Program*'; Get-Process | Where-Object {$_.MainWindowTitle -like $title} | ForEach-Object { try { Stop-Process -Id $_.Id -Force } catch {} }" >nul 2>&1
+    timeout /t 1 /nobreak >nul
+)
+
+REM Method 3: Final attempt - close all cmd.exe windows with this title
+taskkill /FI "WINDOWTITLE eq AI Chatbot Program*" /F >nul 2>&1
+timeout /t 1 /nobreak >nul
+
+REM Final exit - force close
+exit
 
 :main
 
@@ -610,9 +683,10 @@ echo.
 REM Wait a moment for browser to start and connect
 timeout /t 3 /nobreak >nul
 
-REM Get browser process ID by checking which process is using port 8080
-REM First, get all PIDs using port 8080
+REM Get browser process ID - try multiple methods
 set BROWSER_PID=
+
+REM Method 1: Check which process is using port 8080
 for /f "tokens=5" %%p in ('netstat -ano 2^>nul ^| findstr ":8080" ^| findstr "ESTABLISHED"') do (
     if not "%%p"=="" (
         REM Check if this PID is a browser process
@@ -633,6 +707,39 @@ for /f "tokens=5" %%p in ('netstat -ano 2^>nul ^| findstr ":8080" ^| findstr "ES
     )
 )
 
+REM Method 2: Find browser processes with localhost:8080 in command line (if Method 1 failed)
+if not defined BROWSER_PID (
+    REM Try to find browser process that has localhost:8080 in command line
+    for /f "tokens=2" %%p in ('tasklist /FI "IMAGENAME eq msedge.exe" /FO LIST 2^>nul ^| findstr /I "PID"') do (
+        for /f "tokens=*" %%c in ('wmic process where "ProcessId=%%p" get CommandLine 2^>nul') do (
+            echo %%c | findstr /I "localhost:8080" >nul
+            if !errorlevel! equ 0 (
+                set BROWSER_PID=%%p
+                goto :browser_pid_found
+            )
+        )
+    )
+    for /f "tokens=2" %%p in ('tasklist /FI "IMAGENAME eq chrome.exe" /FO LIST 2^>nul ^| findstr /I "PID"') do (
+        for /f "tokens=*" %%c in ('wmic process where "ProcessId=%%p" get CommandLine 2^>nul') do (
+            echo %%c | findstr /I "localhost:8080" >nul
+            if !errorlevel! equ 0 (
+                set BROWSER_PID=%%p
+                goto :browser_pid_found
+            )
+        )
+    )
+    for /f "tokens=2" %%p in ('tasklist /FI "IMAGENAME eq firefox.exe" /FO LIST 2^>nul ^| findstr /I "PID"') do (
+        for /f "tokens=*" %%c in ('wmic process where "ProcessId=%%p" get CommandLine 2^>nul') do (
+            echo %%c | findstr /I "localhost:8080" >nul
+            if !errorlevel! equ 0 (
+                set BROWSER_PID=%%p
+                goto :browser_pid_found
+            )
+        )
+    )
+    :browser_pid_found
+)
+
 REM Show message
 echo.
 echo ========================================
@@ -642,50 +749,101 @@ echo ========================================
 echo.
 echo Server window: "AI Chatbot Server"
 if defined BROWSER_PID (
-    echo Browser PID: %BROWSER_PID%
-    echo.
-    echo ========================================
-    echo   자동 종료 모드 활성화
-    echo ========================================
-    echo   브라우저 창을 닫으면 서버가 자동으로 종료됩니다.
-    echo   또는 이 창에서 아무 키나 누르면 즉시 종료됩니다.
-    echo ========================================
+    echo Browser PID: %BROWSER_PID% (모니터링 중...)
+    echo 브라우저를 닫으면 자동으로 종료됩니다.
 ) else (
-    echo.
-    echo ========================================
-    echo   서버 종료 방법:
-    echo ========================================
-    echo   1. 이 창에서 아무 키나 누르기 (권장)
-    echo   2. "AI Chatbot Server" 창에서 Ctrl+C 누르기
-    echo   3. "서버종료.bat" 파일 실행하기
-    echo ========================================
+    echo Browser PID: 찾을 수 없음 (자동 감지 모드)
+    echo 브라우저를 닫으면 자동으로 종료됩니다.
 )
-echo.
-echo Press any key to stop the server immediately, or close browser to auto-stop...
-echo.
-
-REM Monitor browser and server processes
 echo.
 echo ========================================
 echo   자동 종료 모드 활성화
 echo ========================================
-echo   브라우저를 닫거나 서버가 종료되면 자동으로 실행창이 닫힙니다.
-echo   이 창에서 Ctrl+C를 누르면 즉시 종료됩니다.
+echo   브라우저를 닫으면 서버와 실행창이 자동으로 종료됩니다.
+echo   이 창에서 Ctrl+C를 누르면 즉시 종료할 수 있습니다.
 echo ========================================
 echo.
+echo 모니터링 중... (1초마다 브라우저 상태 확인)
+echo.
 
-REM Monitor loop - check browser and server every 1 second
+REM Monitor loop - check browser and server every 1 second (automatic mode)
 :monitor_loop
 timeout /t 1 /nobreak >nul
-REM Check if browser process still exists (if we found one)
-if defined BROWSER_PID (
-    tasklist /FI "PID eq %BROWSER_PID%" 2^>nul | findstr /I "%BROWSER_PID%" >nul
-    if !errorlevel! neq 0 (
-        echo.
-        echo 브라우저가 닫혔습니다. 서버와 실행창을 종료합니다...
-        timeout /t 1 /nobreak >nul
-        goto :cleanup
+
+REM Check if browser process still exists - simplified and more reliable
+set BROWSER_EXISTS=0
+
+REM Method 1: Check if any browser is connected to port 8080 (MOST RELIABLE - browser must be connected)
+for /f "tokens=5" %%p in ('netstat -ano 2^>nul ^| findstr ":8080" ^| findstr "ESTABLISHED"') do (
+    if not "%%p"=="" (
+        REM Check if this PID is a browser process
+        tasklist /FI "PID eq %%p" 2^>nul | findstr /I "chrome.exe msedge.exe firefox.exe iexplore.exe" >nul
+        if !errorlevel! equ 0 (
+            set BROWSER_EXISTS=1
+            goto :browser_check_done
+        )
     )
+)
+
+REM Method 2: Check specific browser PID if we found one earlier (fallback)
+if !BROWSER_EXISTS! equ 0 (
+    if defined BROWSER_PID (
+        tasklist /FI "PID eq %BROWSER_PID%" 2^>nul | findstr /I "%BROWSER_PID%" >nul
+        if !errorlevel! equ 0 (
+            set BROWSER_EXISTS=1
+            goto :browser_check_done
+        )
+    )
+)
+
+REM Method 3: Check for any browser process with localhost:8080 in command line (final fallback)
+if !BROWSER_EXISTS! equ 0 (
+    REM Check Edge (most common)
+    for /f "tokens=2" %%p in ('tasklist /FI "IMAGENAME eq msedge.exe" /FO LIST 2^>nul ^| findstr /I "PID"') do (
+        for /f "tokens=*" %%c in ('wmic process where "ProcessId=%%p" get CommandLine 2^>nul') do (
+            echo %%c | findstr /I "localhost:8080" >nul
+            if !errorlevel! equ 0 (
+                set BROWSER_EXISTS=1
+                goto :browser_check_done
+            )
+        )
+    )
+    REM Check Chrome
+    for /f "tokens=2" %%p in ('tasklist /FI "IMAGENAME eq chrome.exe" /FO LIST 2^>nul ^| findstr /I "PID"') do (
+        for /f "tokens=*" %%c in ('wmic process where "ProcessId=%%p" get CommandLine 2^>nul') do (
+            echo %%c | findstr /I "localhost:8080" >nul
+            if !errorlevel! equ 0 (
+                set BROWSER_EXISTS=1
+                goto :browser_check_done
+            )
+        )
+    )
+    REM Check Firefox
+    for /f "tokens=2" %%p in ('tasklist /FI "IMAGENAME eq firefox.exe" /FO LIST 2^>nul ^| findstr /I "PID"') do (
+        for /f "tokens=*" %%c in ('wmic process where "ProcessId=%%p" get CommandLine 2^>nul') do (
+            echo %%c | findstr /I "localhost:8080" >nul
+            if !errorlevel! equ 0 (
+                set BROWSER_EXISTS=1
+                goto :browser_check_done
+            )
+        )
+    )
+)
+
+:browser_check_done
+
+REM If browser doesn't exist, close everything
+if !BROWSER_EXISTS! equ 0 (
+    echo.
+    echo ========================================
+    echo   브라우저가 닫혔습니다!
+    echo   서버와 실행창을 종료합니다...
+    echo ========================================
+    echo.
+    timeout /t 1 /nobreak >nul
+    
+    REM Run cleanup to stop server and close window
+    goto :cleanup
 )
 
 REM Check if server window still exists
@@ -714,4 +872,5 @@ if !SERVER_RUNNING! equ 0 (
 )
 
 goto :monitor_loop
+
 

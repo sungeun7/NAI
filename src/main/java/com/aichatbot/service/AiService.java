@@ -257,19 +257,9 @@ public class AiService {
             String apiUrl = "https://generativelanguage.googleapis.com/" + apiVersion + "/models/" +
                            modelName + ":generateContent?key=" + encodedApiKey;
 
-            // 대화 기록 구성
+            // 대화 기록 구성 - 현재 프롬프트만 사용 (이전 대화 기록 제외)
             List<Map<String, Object>> contents = new ArrayList<>();
-            int startIndex = Math.max(0, conversationHistory.size() - 5);
-            for (int i = startIndex; i < conversationHistory.size(); i++) {
-                Map<String, String> msg = conversationHistory.get(i);
-                String role = "user".equals(msg.get("role")) ? "user" : "model";
-                Map<String, Object> part = new HashMap<>();
-                part.put("text", msg.get("content"));
-                Map<String, Object> content = new HashMap<>();
-                content.put("role", role);
-                content.put("parts", Arrays.asList(part));
-                contents.add(content);
-            }
+            // 현재 프롬프트만 사용하여 이전 대화에 대한 답변이 포함되지 않도록 함
             Map<String, Object> userPart = new HashMap<>();
             userPart.put("text", prompt);
             Map<String, Object> userContent = new HashMap<>();
@@ -523,14 +513,7 @@ public class AiService {
             systemMsg.put("content", "당신은 친절하고 도움이 되는 AI 어시스턴트입니다. 한국어로 답변해주세요.");
             messages.add(systemMsg);
 
-            int startIndex = Math.max(0, conversationHistory.size() - 10);
-            for (int i = startIndex; i < conversationHistory.size(); i++) {
-                Map<String, String> msg = conversationHistory.get(i);
-                Map<String, String> message = new HashMap<>();
-                message.put("role", msg.get("role"));
-                message.put("content", msg.get("content"));
-                messages.add(message);
-            }
+            // 현재 프롬프트만 사용 (이전 대화 기록 제외)
             Map<String, String> userMsg = new HashMap<>();
             userMsg.put("role", "user");
             userMsg.put("content", prompt);
